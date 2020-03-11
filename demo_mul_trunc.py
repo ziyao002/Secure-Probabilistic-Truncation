@@ -3,7 +3,7 @@ import time
 from gmpy2 import mpz
 
 def gen_n(k, secure_k):
-    prime = gmpy2.next_prime(2 ** (k + secure_k + 2 + 1))
+    prime = gmpy2.next_prime(2 ** (2 * k + secure_k + 2))
     while True:
         n_candidate = prime
         if n_candidate % 4 == 3:
@@ -58,6 +58,37 @@ def mult(share_tuple, N):
     share0 = (share_sum_square - share1 - share2) % N
     return [share0, share1, share2]
 
+def add_share(a, b, N):
+    if not isinstance(a, list):
+        a_share = share(a, N)
+    else:
+        a_share = a
+    if not isinstance(b, list):
+        b_share = share(b, N)
+    else:
+        b_share = b
+    c_share = 3 * [0]
+    for i in range(3):
+        c_share[i] = (a_share[i] + b_share[i]) % N
+    return c_share
+
+def mult_share(share_tuple_1, share_tuple_2, N):
+    if not isinstance(share_tuple_1, list):
+        share_1 = share_tuple_1
+    else:
+        share_1 = (share_tuple_1[0] + share_tuple_1[1] + share_tuple_1[2]) % N
+    if not isinstance(share_tuple_2, list):
+        share_2 = share_tuple_2
+    else:
+        share_2 = (share_tuple_2[0] + share_tuple_2[1] + share_tuple_2[2]) % N
+    share_mult = (share_1 * share_2) % N
+    random_state = gmpy2.random_state(int(time.time() * 10000))
+    share1 = gmpy2.mpz_random(random_state, N)
+    random_state = gmpy2.random_state(int(time.time() * 10001))
+    share2 = gmpy2.mpz_random(random_state, N)
+    share0 = (share_mult - share1 - share2) % N
+    return [share0, share1, share2]
+
 def reveal(share_tuple, N):
     return (share_tuple[0] + share_tuple[1] + share_tuple[2]) % N
 
@@ -95,7 +126,7 @@ def PRandFld(modulus):
     return (a1, a2, a3)
 
 def PRandInt(k, N):
-    rand_int = PRandFld(gmpy2.powmod(2, k+2, N))
+    rand_int = PRandFld(gmpy2.powmod(2, k, N))
     return rand_int
 
 def delete_LSB(x, m, N):
@@ -120,12 +151,12 @@ def TruncPr(a, k, m, secure_k, N):
         ri = PRandBit(N)
         ri_list.append(ri)
     # step 4
-    for i in range(3):
-        for j in range(m):
-            r_p[i] = (r_p[i] + ri_list[j][i] * gmpy2.powmod(2, j, N)) % N
+    for i in range(m):
+        r_p = add_share(r_p, mult_share(ri_list[i], gmpy2.powmod(2, i, N), N), N)
     # step 5
     # r_pp = PRandInt(secure_k + k - m, N)
-    r_pp = share(2, N)
+    r_pp = PRandInt(secure_k + k - m, N)
+    # r_pp = share(920, N)
     # step 6
     for i in range(3):
         r[i] = (gmpy2.powmod(2, m, N) * r_pp[i] + r_p[i]) % N
@@ -143,17 +174,6 @@ def TruncPr(a, k, m, secure_k, N):
     for i in range(3):
         a_a_p[i] = (a[i] - a_p[i]) % N
         d[i] = delete_LSB(a_a_p[i], m, N)
-
-    # print("a = ", a, reveal(a, N))
-    # print("b = ", b, reveal(b, N))
-    # print("r_p = ", r_p, reveal(r_p, N))
-    # print("r_pp = ", r_pp, reveal(r_pp, N))
-    # print("r = ", r, reveal(r, N))
-    # print("c = ", c, reveal(c, N))
-    # print("c_p = ", c_p)
-    # print("c_p_share = ", c_p_share, reveal(c_p_share, N))
-    # print("a_p = ", a_p, reveal(a_p, N))
-    # print("a_a_p = ", a_a_p, reveal(a_a_p, N), reveal(a_a_p, N).digits(2))
 
     return d
 
@@ -205,13 +225,13 @@ def reveal_bin(x, N):
 def main():
 
     secure_k = 80
-    k = 32
-    m = 24
+    k = 64
+    m = 52
     N = gen_n(k, secure_k)
     print("N = ", N)
 
-    x = -145.5425
-    y = 112.5456
+    x = -142.5567867
+    y = 21.5783481897
     z = x * y
 
     x_value = fix_2_ff(x, m)
@@ -242,4 +262,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
